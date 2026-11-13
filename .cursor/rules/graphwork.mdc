@@ -1,0 +1,5 @@
+---
+description: Project rules for the graphwork multi-agent engine
+alwaysApply: true
+---
+Follow @AGENTS.md at the repo root; it is the single source of truth for all agents.

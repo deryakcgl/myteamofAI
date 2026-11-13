@@ -1,0 +1,16 @@
+{
+  "name": "graphwork",
+  "version": "1.0.0",
+  "description": "A graph engine that runs a team of AI agents like an agile software team. Claude Code subagents plan, build and test in sprints, Codex and Cursor review each one, and you're the product owner who answers a to-do list when only a human can help.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "license": "ISC",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

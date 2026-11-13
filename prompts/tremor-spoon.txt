@@ -1,0 +1,48 @@
+Build the firmware for a tremor-cancelling spoon. An ESP32 reads an IMU on the handle and drives two servos that tilt the spoon head to cancel hand tremor, while letting intentional movement through. Work in the current directory.
+
+HARDWARE (fixed, do not change)
+- ESP32 DevKit, Arduino framework, C++17
+- MPU-6050 6-axis IMU over I2C: SDA = GPIO21, SCL = GPIO22, address 0x68
+- Two micro servos driven with LEDC PWM: pitch = GPIO18, roll = GPIO19. 50 Hz by default, configurable up to 333 Hz for digital servos
+- Mechanical range: ±30° per axis around center
+
+BEHAVIOUR
+1. Sample the IMU at 200 Hz on a fixed period (no delay()-based loop that drifts).
+2. Estimate pitch and roll with a complementary filter (gyro + accelerometer).
+3. Separate tremor from intentional movement. Tremor band: 3–12 Hz. Intentional movement: below 2 Hz. Use 2nd-order biquad filters designed for a 200 Hz sample rate. Document the coefficients and how they were computed.
+4. Command each servo to the negative of the tremor component so the spoon head stays steady.
+5. Safety:
+   - On boot, center the servos and calibrate gyro bias while at rest (~1 s).
+   - Clamp servo commands to ±30° and limit the slew rate.
+   - If an IMU read fails or returns NaN or out-of-range data, return the servos to center and retry.
+   - Reject single-sample spikes.
+   - No dynamic memory allocation in the control loop.
+6. Debug output: one Serial line (115200 baud) at 20 Hz with angle, tremor estimate, and servo command per axis.
+
+CODE STRUCTURE
+- All control logic goes in hardware-independent C++ under src/core/, with no Arduino headers: biquad filter, complementary filter, tremor isolator, and a controller with clamp and slew limit. One small class per concern.
+- A thin hardware layer (src/main.cpp, an IMU driver, a servo driver) that only reads sensors, calls the core, and writes PWM.
+- A platformio.ini for board esp32dev, so the firmware can later be built with `pio run` and flashed with `pio run -t upload`. Tests must NOT need PlatformIO.
+
+TESTS (must run on this Mac with only the system C++ compiler: no internet, no downloads, no external test framework)
+- `make test` compiles src/core/ plus the tests with `c++ -std=c++17 -Wall -Wextra -Werror`, then runs them. A small assert-based test runner is fine.
+- Unit tests:
+  - The biquad's gain at 1 Hz, 6 Hz and 20 Hz is within 5% of the designed response.
+  - The complementary filter converges to the accelerometer angle at rest.
+  - The controller returns to center on NaN input.
+  - The slew limit and the ±30° clamp are never exceeded.
+- Simulation test, 10 s at 200 Hz:
+  - Handle angle = intentional motion (0.5 Hz, ±20°) + tremor (6 Hz, ±5°) + small random noise (fixed seed).
+  - Model each servo as a first-order lag with a 10 ms time constant and the same ±30° clamp.
+  - Spoon-head angle = handle angle + servo angle.
+  - PASS only if:
+    (a) the 4–8 Hz RMS of the head angle is at least 40% lower than the handle's;
+    (b) the 0.5 Hz amplitude of the head angle is within 10% of the handle's;
+    (c) the servo command stays within ±30° the whole time.
+  - Print the measured tremor reduction in % and dB.
+
+DELIVERABLES
+- The code and tests above, passing with `make test`.
+- A README.md with a wiring table, build and flash steps, how to run the tests, the tuning parameters (filter band, gains, slew limit) and what each one does, and the known limitations.
+- A note that this is a hobby prototype, not a medical device.
+- Keep it small and readable: aim for under ~1000 lines in total, excluding the README.
